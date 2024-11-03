@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Run tests
-	m.Run()
+	os.Exit(m.Run())
 
 	// Close database
 	db.Close()

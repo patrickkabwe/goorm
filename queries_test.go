@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	orm "github.com/patrickkabwe/goorm"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFindMany(t *testing.T) {
@@ -16,8 +16,8 @@ func TestFindMany(t *testing.T) {
 		),
 	})
 
-	require.NoError(t, err)
-	require.NotEmpty(t, users)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, users)
 }
 
 func testCreateUser(t *testing.T) {
@@ -29,5 +29,5 @@ func testCreateUser(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, err)
+	assert.NoError(t, err)
 }
