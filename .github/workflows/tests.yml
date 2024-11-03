@@ -80,7 +80,7 @@ jobs:
             ${{ runner.os }}-go-
       - name: Wait for PostgreSQL
         run: |
-          while ! nc -z localhost ${{env.POSTGRES_PASSWORD}}; do
+          while ! nc -z localhost ${{env.POSTGRES_PORT}}; do
             sleep 1
           done
       - name: Tests
