@@ -219,13 +219,16 @@ func buildInsertQuery(engine *Engine, data interface{}) (string, []interface{}) 
 	var placeholders []string
 	var args []interface{}
 
-	for i := 0; i < t.NumField(); i++ {
+	for i := 1; i < t.NumField(); i++ {
 		field := t.Field(i)
 		value := v.Field(i)
 
 		if dbTag := field.Tag.Get(DB_COL_LOOKUP); dbTag != "" {
+			if strings.Contains(field.Tag.Get(DB_OPT_LOOKUP), "auto_increment") {
+				continue
+			}
 			columns = append(columns, dbTag)
-			placeholders = append(placeholders, engine.dialect.GetPlaceholder(i+1))
+			placeholders = append(placeholders, engine.dialect.GetPlaceholder(i))
 			args = append(args, value.Interface())
 		}
 	}
@@ -543,33 +546,6 @@ func getTableName(model interface{}) string {
 
 	return strings.ToLower(t.Name()) + "s"
 }
-
-// func scanStruct(rows *sql.Rows, dest interface{}) error {
-// 	columns, err := rows.Columns()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	v := reflect.ValueOf(dest).Elem()
-// 	t := v.Type()
-
-// 	values := make([]interface{}, len(columns))
-// 	for i, column := range columns {
-// 		for j := 0; j < t.NumField(); j++ {
-// 			field := t.Field(j)
-// 			if dbTag := field.Tag.Get(DB_COL_LOOKUP); dbTag == column {
-// 				values[i] = v.Field(j).Addr().Interface()
-// 				break
-// 			}
-// 		}
-// 		if values[i] == nil {
-// 			var placeholder interface{}
-// 			values[i] = &placeholder
-// 		}
-// 	}
-
-// 	return rows.Scan(values...)
-// }
 
 func isZero(v reflect.Value) bool {
 	switch v.Kind() {

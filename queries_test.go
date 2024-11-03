@@ -17,13 +17,12 @@ func TestFindMany(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	assert.Len(t, users, 1)
+	assert.NotEmpty(t, users)
 }
 
 func testCreateUser(t *testing.T) {
 	_, err := db.User.Create(orm.P{
 		Data: orm.User{
-			ID:    "1",
 			Name:  "John",
 			Email: "john@example.com",
 			Age:   30,

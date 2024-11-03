@@ -34,7 +34,7 @@ jobs:
         include:
           - os: ubuntu-latest
             go-build: ~/.cache/go-build
-    name: ${{ matrix.os }} @ Go ${{ matrix.go }}
+    name: ${{ matrix.os }} @ Go ${{ matrix.go }} DB ${{ matrix.dbversion }}
     runs-on: ${{ matrix.os }}
     env:
       POSTGRES_PASSWORD: goorm-test

@@ -11,7 +11,8 @@ var db *goorm.GeneratedDB
 
 func TestMain(m *testing.M) {
 	// Setup database
-	db, err := goorm.NewGoorm(&goorm.GoormConfig{
+	var err error
+	db, err = goorm.NewGoorm(&goorm.GoormConfig{
 		DSN:    goorm.GetENV("POSTGRES_DSN"),
 		Driver: goorm.Postgres,
 		Logger: goorm.NewDefaultLogger(),
