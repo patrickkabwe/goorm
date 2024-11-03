@@ -41,6 +41,7 @@ jobs:
       POSTGRES_USER: goorm-test
       POSTGRES_DB: goorm-test
       POSTGRES_PORT: 9920
+      POSTGRES_DSN: "postgres://goorm-test:goorm-test@localhost:9920/goorm-test?sslmode=disable&TimeZone=Africa/Lusaka"
       TZ: Africa/Lusaka
     services:
       postgres:
