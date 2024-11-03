@@ -358,20 +358,3 @@ func (m *BaseModel[T]) loadBelongsToRelation(results *[]T, rel Relation, params 
 
 	return nil
 }
-
-func getFieldValue(v reflect.Value, fieldName string) (interface{}, bool) {
-	if !v.IsValid() {
-		return nil, false
-	}
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil, false
-		}
-		v = v.Elem()
-	}
-	field := v.FieldByName(fieldName)
-	if !field.IsValid() {
-		return nil, false
-	}
-	return field.Interface(), true
-}
