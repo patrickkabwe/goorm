@@ -1,12 +1,25 @@
 # goorm
 
-goorm is a simple ORM for Go that supports PostgreSQL, MySQL, and SQLite.
+Goorm is a ORM for Go that supports PostgreSQL, MySQL, and SQLite.
 
 ## Installation
 
 ```bash
 go get github.com/patrickkabwe/goorm
 ```
+
+## CLI Installation
+
+```bash
+go install github.com/patrickkabwe/goorm/cmd@latest
+```
+
+[!NOTE] You need to install both `goorm` and `goorm-cli` to use the CLI.
+The `goorm-cli` is used to generate the `goorm` code and to manage the migrations.
+
+## Disclaimer
+
+[!WARNING] This module is still under development. Use at your own risk. The API is experimental and subject to change. This module tries to create a simple and intuitive API for interacting with databases. However, it is not a replacement for a professional ORM like [gorm](https://github.com/go-gorm/gorm) or [ent](https://github.com/ent/ent).
 
 ## Usage
 
