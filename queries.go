@@ -172,7 +172,8 @@ func (m *BaseModel[T]) Update(params P) error {
 	}
 
 	query, args := buildUpdateQuery(m.engine, data, params.Where)
-	m.logger.Debug("Update query", "query", query, "args", args)
+
+	fmt.Println(query, args)
 
 	var err error
 	if m.tx != nil {
@@ -194,7 +195,6 @@ func (m *BaseModel[T]) Delete(params P) error {
 	}
 
 	query, args := buildDeleteQuery(m.engine, new(T), params)
-	m.logger.Debug("Delete query", "query", query, "args", args)
 
 	var err error
 	if m.tx != nil {
@@ -251,15 +251,21 @@ func buildUpdateQuery(engine *Engine, data interface{}, conditions []Condition) 
 
 	var setStatements []string
 	var args []interface{}
+	placeholderIndex := 1
 
-	// Build SET clause
-	for i := 0; i < t.NumField(); i++ {
+	for i := 1; i < t.NumField(); i++ {
 		field := t.Field(i)
 		value := v.Field(i)
 
 		if dbTag := field.Tag.Get(DB_COL_LOOKUP); dbTag != "" && !isZero(value) {
-			setStatements = append(setStatements, fmt.Sprintf("%s = %s", dbTag, engine.dialect.GetPlaceholder(i+1)))
+			setStatements = append(setStatements,
+				fmt.Sprintf("%s = %s",
+					dbTag,
+					engine.dialect.GetPlaceholder(placeholderIndex),
+				),
+			)
 			args = append(args, value.Interface())
+			placeholderIndex++
 		}
 	}
 
@@ -269,15 +275,23 @@ func buildUpdateQuery(engine *Engine, data interface{}, conditions []Condition) 
 		strings.Join(setStatements, ", "),
 	)
 
-	// Add WHERE clause
 	if len(conditions) > 0 {
 		whereStatements := make([]string, 0, len(conditions))
 		for _, cond := range conditions {
-			whereStatements = append(whereStatements, fmt.Sprintf("%s %s ?", cond.Field, cond.Op))
+			whereStatements = append(whereStatements,
+				fmt.Sprintf("%s %s %s",
+					cond.Field,
+					cond.Op,
+					engine.dialect.GetPlaceholder(placeholderIndex),
+				),
+			)
 			args = append(args, cond.Value)
+			placeholderIndex++
 		}
 		query += " WHERE " + strings.Join(whereStatements, " AND ")
 	}
+
+	engine.logger.Info("Update query", "query", query, "args", args)
 
 	return query, args
 }
@@ -294,6 +308,8 @@ func buildDeleteQuery[T any](engine *Engine, model T, params P) (string, []inter
 		}
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
+
+	engine.logger.Info("Delete query", "query", query, "args", args)
 
 	return query, args
 }
