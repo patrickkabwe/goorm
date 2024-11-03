@@ -1,4 +1,4 @@
-module github.com/patrickkabwe/goorm/cmd
+module github.com/patrickkabwe/goorm/goorm-cli
 
 go 1.22.5
 

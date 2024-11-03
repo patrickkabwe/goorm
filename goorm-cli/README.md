@@ -5,17 +5,17 @@ Goorm cli tool is a command line tool that generates, migrates, and manages Go O
 ## Installation
 
 ```bash
-go install github.com/patrickkabwe/goorm/cmd@latest
+go install github.com/patrickkabwe/goorm/goorm-cli@latest
 ```
 
 ## Usage
 
 ```bash
-goorm -h
+goorm-cli -h
 
 Usage:
-  goorm [flags]
-  goorm [command]
+  goorm-cli [flags]
+  goorm-cli [command]
 
 Available Commands:
   completion  Generate the autocompletion script for the specified shell
@@ -25,9 +25,9 @@ Available Commands:
   push        Pushes the models to the database
 
 Flags:
-  -h, --help   help for goorm
+  -h, --help   help for goorm-cli
 
-Use "goorm [command] --help" for more information about a command.
+Use "goorm-cli [command] --help" for more information about a command.
 
 ```
 
@@ -38,7 +38,7 @@ Use "goorm [command] --help" for more information about a command.
 Generates a typed model from a database schema.
 
 ```bash
-goorm generate
+goorm-cli generate
 ```
 
 ### Migrate
@@ -46,13 +46,13 @@ goorm generate
 Generates a migration file.
 
 ```bash
-goorm migrate --name create_tables
+goorm-cli migrate --name create_tables
 ```
 
 Apply migrations
 
 ```bash
-goorm migrate --apply
+goorm-cli migrate --apply
 ```
 
 ### Push
@@ -60,7 +60,7 @@ goorm migrate --apply
 Pushes the models to the database that generated with the generate command.
 
 ```bash
-goorm push
+goorm-cli push
 ```
 
 ## License

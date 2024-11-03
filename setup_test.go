@@ -12,7 +12,7 @@ var db *goorm.GeneratedDB
 func TestMain(m *testing.M) {
 	// Setup database
 	db = goorm.NewGoorm(&goorm.GoormConfig{
-		DSN:    "postgres://postgres:postgres@localhost:5432/goorm-test?sslmode=disable",
+		DSN:    goorm.GetENV("POSTGRES_DSN"),
 		Driver: goorm.Postgres,
 		Logger: goorm.NewDefaultLogger(),
 	})

@@ -2,6 +2,6 @@ build:
 	go build -v ./...
 
 test:
-	go test -v -cover .
+	POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/goorm-test?sslmode=disable" go test -v -cover .
 format:
 	go fmt .
