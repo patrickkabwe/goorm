@@ -84,6 +84,4 @@ jobs:
             sleep 1
           done
       - name: Tests
-        run: |
-          POSTGRES_DSN="postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}"
-          go test -v -cover .
+        run: POSTGRES_DSN="postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}" go test -count=1 -v -cover .
