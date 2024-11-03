@@ -1,0 +1,84 @@
+name: Lint and Testing
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "^1"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --verbose
+
+  postgres:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        go: [1.21, 1.22, 1.23]
+        dbversion:
+          ["postgres:latest", "postgres:15", "postgres:14", "postgres:13"]
+        include:
+          - os: ubuntu-latest
+            go-build: ~/.cache/go-build
+    name: ${{ matrix.os }} @ Go ${{ matrix.go }}
+    runs-on: ${{ matrix.os }}
+    env:
+      POSTGRES_PASSWORD: goorm-test
+      POSTGRES_USER: goorm-test
+      POSTGRES_DB: goorm-test
+      POSTGRES_PORT: 9920
+      TZ: Africa/Lusaka
+    services:
+      postgres:
+        image: ${{ matrix.dbversion }}
+        env:
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          TZ: ${{ env.TZ }}
+        ports:
+          - 9920:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.go-build }}
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Tests
+        run: |
+          POSTGRES_DSN="postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}"
+          go test -v -cover .
