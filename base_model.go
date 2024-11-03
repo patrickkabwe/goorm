@@ -58,7 +58,6 @@ func (m *BaseModel[T]) withTx(tx *sql.Tx) interface{} {
 }
 
 func (m *BaseModel[T]) loadRelations(results *[]T, includes map[string]P) error {
-	fmt.Println("ITEM", results)
 	if results == nil || len(*results) == 0 {
 		return nil
 	}

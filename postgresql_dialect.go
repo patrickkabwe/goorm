@@ -123,7 +123,7 @@ func (m *PostgreSQL) CreateTableSQL(table Table) string {
 
 	b.WriteString(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (", m.Quote(table.Name)))
 
-	for _, col := range table.Columns {
+	for ti, col := range table.Columns {
 		b.WriteString("\n  ")
 		b.WriteString(m.Quote(col.Name))
 		b.WriteString(" ")
@@ -132,10 +132,12 @@ func (m *PostgreSQL) CreateTableSQL(table Table) string {
 			b.WriteString(" ")
 			b.WriteString(col.Options)
 		}
-		b.WriteString(",")
+		if ti < len(table.Columns)-1 {
+			b.WriteString(",")
+		}
 	}
 
-	for _, fk := range table.ForeignKeys {
+	for fi, fk := range table.ForeignKeys {
 		b.WriteString(",\n  CONSTRAINT ")
 		b.WriteString(fk.Name)
 		b.WriteString(" FOREIGN KEY (")
@@ -149,10 +151,16 @@ func (m *PostgreSQL) CreateTableSQL(table Table) string {
 			b.WriteString(" ")
 			b.WriteString(fk.Options)
 		}
+
+		if fi < len(table.ForeignKeys)-1 {
+			b.WriteString(",")
+		}
 	}
 
 	b.WriteString("\n)")
+
 	fmt.Println(b.String())
+
 	return b.String()
 }
 

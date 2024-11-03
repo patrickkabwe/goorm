@@ -10,10 +10,10 @@ type GeneratedDB struct {
     Comment *CommentModel
 }
 
-func NewGoorm(cfg *GoormConfig) *GeneratedDB {
+func NewGoorm(cfg *GoormConfig) (*GeneratedDB, error) {
  	engine, err := NewEngine(cfg.Driver, cfg.DSN, cfg.Logger)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	db := NewDB(engine, cfg.Logger)	
     gdb := &GeneratedDB{
@@ -30,7 +30,7 @@ func NewGoorm(cfg *GoormConfig) *GeneratedDB {
     gdb.Post.initRelations()
     gdb.Comment.initRelations()
 
-    return gdb
+    return gdb, nil
 }
 
 

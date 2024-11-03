@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/patrickkabwe/goorm"
 	"github.com/spf13/cobra"
@@ -33,6 +34,8 @@ func push() {
 	err = NewSchemaPusher(db, goorm.Postgres).Push()
 
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("❌ Failed to push your models to the database: %v", err))
 	}
+
+	fmt.Println("✅ Your models have been pushed to the database")
 }

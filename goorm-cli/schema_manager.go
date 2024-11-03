@@ -126,7 +126,7 @@ func (s *SchemaManager) Migrate(migrationName string) error {
 				continue
 			}
 
-			table := buildTable(goorm.Driver(s.dialect.GetName()), typeSpec.Name.Name, structType)
+			table := buildTable(s.dialect, typeSpec.Name.Name, structType)
 			migration.Tables = append(migration.Tables, table)
 			for _, idx := range table.Indexes {
 				migration.IndexOrder = append(migration.IndexOrder, goorm.IndexOrder{
@@ -177,7 +177,7 @@ func (s *SchemaManager) processTable(tx *sql.Tx, structName string, structType *
 	}
 
 	if !exists {
-		table := buildTable(goorm.Driver(s.dialect.GetName()), structName, structType)
+		table := buildTable(s.dialect, structName, structType)
 		sql := s.dialect.CreateTableSQL(table)
 		if _, err := tx.Exec(sql); err != nil {
 			return err
@@ -194,8 +194,7 @@ func (s *SchemaManager) processTable(tx *sql.Tx, structName string, structType *
 			return err
 		}
 
-		table := buildTable(goorm.Driver(s.dialect.GetName()), structName, structType)
-		fmt.Println(table.Columns)
+		table := buildTable(s.dialect, structName, structType)
 
 		for _, col := range table.Columns {
 			if _, exists := currentCols[col.Name]; !exists {
@@ -204,7 +203,7 @@ func (s *SchemaManager) processTable(tx *sql.Tx, structName string, structType *
 					Type:  col.Type,
 					Extra: col.Options,
 				})
-				fmt.Println(sql)
+
 				if _, err := tx.Exec(sql); err != nil {
 					return err
 				}

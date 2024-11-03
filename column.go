@@ -20,7 +20,7 @@ var SQLType = map[string]string{
 	"*bool":   "boolean",
 }
 
-func GetColumnOptions(field *ast.Field, driver Driver) map[string]Column {
+func GetColumnOptions(field *ast.Field, dialect Dialect) map[string]Column {
 	tags := make(map[string]Column)
 
 	if field.Tag == nil {
@@ -36,8 +36,8 @@ func GetColumnOptions(field *ast.Field, driver Driver) map[string]Column {
 	structTag := reflect.StructTag(tagValue)
 
 	if dbTag, ok := structTag.Lookup(DB_OPT_LOOKUP); ok {
-		sqlType := getColumnType(dbTag, driver)
-		options := parseColumnConstraints(dbTag, driver)
+		sqlType := getColumnType(dbTag, field, dialect)
+		options := parseColumnConstraints(dbTag, dialect)
 
 		tags[fieldName] = Column{
 			Name:    fieldName,
@@ -58,7 +58,6 @@ func GetColumnOptions(field *ast.Field, driver Driver) map[string]Column {
 func getSQLType(expr ast.Expr) string {
 	switch t := expr.(type) {
 	case *ast.Ident:
-
 		if sqlType, ok := SQLType[t.Name]; ok {
 			return sqlType
 		}
@@ -75,12 +74,10 @@ func getSQLType(expr ast.Expr) string {
 	return "text"
 }
 
-func parseColumnConstraints(tag string, dialect Driver) string {
+func parseColumnConstraints(tag string, dialect Dialect) string {
 	var constraints []string
 
 	parts := strings.Split(tag, ",")
-	hasAutoIncrement := false
-	hasPrimaryKey := false
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -102,7 +99,6 @@ func parseColumnConstraints(tag string, dialect Driver) string {
 				checkCond := strings.Trim(value, "()")
 				constraints = append(constraints, fmt.Sprintf("CHECK (%s)", checkCond))
 			case "length":
-				// Handle length in the type conversion, not here
 				continue
 			}
 			continue
@@ -110,32 +106,27 @@ func parseColumnConstraints(tag string, dialect Driver) string {
 
 		switch part {
 		case "primary key":
-			hasPrimaryKey = true
 			constraints = append(constraints, "PRIMARY KEY")
 		case "auto_increment":
-			hasAutoIncrement = true
 		case "not null":
 			constraints = append(constraints, "NOT NULL")
 		}
 
-		fmt.Println(hasAutoIncrement, hasPrimaryKey)
 	}
 
 	return strings.Join(constraints, " ")
 }
 
-func getColumnType(tag string, dialect Driver) string {
+func getColumnType(tag string, field *ast.Field, dialect Dialect) string {
 	var length string
 	parts := strings.Split(tag, ",")
 
-	// Extract length if specified
 	for _, part := range parts {
 		if strings.HasPrefix(part, "length:") {
 			length = strings.TrimPrefix(part, "length:")
 		}
 	}
 
-	// Check for explicit type
 	for _, part := range parts {
 		if strings.HasPrefix(part, "type:") {
 			declaredType := strings.TrimPrefix(part, "type:")
@@ -146,14 +137,14 @@ func getColumnType(tag string, dialect Driver) string {
 		}
 	}
 
-	// Default type handling
 	if length != "" {
 		return fmt.Sprintf("varchar(%s)", length)
 	}
-	return "varchar(255)" // default
+
+	return getSQLType(field.Type)
 }
 
-func convertType(declaredType string, dialect Driver) string {
+func convertType(declaredType string, dialect Dialect) string {
 	switch strings.ToLower(declaredType) {
 	case "serial":
 		return "SERIAL"

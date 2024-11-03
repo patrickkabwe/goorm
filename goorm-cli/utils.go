@@ -8,7 +8,7 @@ import (
 	"github.com/patrickkabwe/goorm"
 )
 
-func buildTable(driver goorm.Driver, structName string, structType *ast.StructType) goorm.Table {
+func buildTable(dialect goorm.Dialect, structName string, structType *ast.StructType) goorm.Table {
 	tableName := toSnakeCase(structName) + "s"
 	table := goorm.Table{
 		Name: tableName,
@@ -36,7 +36,7 @@ func buildTable(driver goorm.Driver, structName string, structType *ast.StructTy
 			}
 		}
 
-		columnOptions := goorm.GetColumnOptions(field, driver)
+		columnOptions := goorm.GetColumnOptions(field, dialect)
 
 		// Skip if no db tag or already seen
 		if dbTag == "" || seenFields[dbTag] {
@@ -65,8 +65,6 @@ func buildTable(driver goorm.Driver, structName string, structType *ast.StructTy
 				Options: columnOptions[fieldName].Options,
 			})
 
-			fmt.Println(table.Columns)
-
 			// Add index
 			idxName := fmt.Sprintf("idx_%s", dbTag)
 			indexes[idxName] = goorm.Index{
@@ -78,7 +76,7 @@ func buildTable(driver goorm.Driver, structName string, structType *ast.StructTy
 
 			// Add foreign key constraint
 			refTableName := strings.TrimSuffix(dbTag, "_id")
-			fmt.Println(columnOptions, dbTag, refTableName)
+
 			fk := goorm.ForeignKey{
 				Name:      fmt.Sprintf("fk_%s_%s", tableName, refTableName),
 				Column:    dbTag,

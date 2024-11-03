@@ -11,11 +11,15 @@ var db *goorm.GeneratedDB
 
 func TestMain(m *testing.M) {
 	// Setup database
-	db = goorm.NewGoorm(&goorm.GoormConfig{
+	db, err := goorm.NewGoorm(&goorm.GoormConfig{
 		DSN:    goorm.GetENV("POSTGRES_DSN"),
 		Driver: goorm.Postgres,
 		Logger: goorm.NewDefaultLogger(),
 	})
+
+	if err != nil {
+		panic(err)
+	}
 
 	// Run tests
 	m.Run()
