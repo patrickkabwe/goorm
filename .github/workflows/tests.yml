@@ -78,6 +78,11 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - name: Wait for PostgreSQL
+        run: |
+          while ! nc -z localhost ${{env.POSTGRES_PASSWORD}}; do
+            sleep 1
+          done
       - name: Tests
         run: |
           POSTGRES_DSN="postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}"
