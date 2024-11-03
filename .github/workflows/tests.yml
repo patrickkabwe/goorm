@@ -92,9 +92,15 @@ jobs:
           done
           echo "PostgreSQL is up and running!"
 
-      - name: Run tests
-        env:
-          POSTGRES_DSN: "postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}"
+      - name: Download dependencies
         run: |
-          echo "Using DSN: ${POSTGRES_DSN//${POSTGRES_PASSWORD}/***}"
-          go test -count=1 -v -cover ./...
+          go mod download
+          if [ -d "goorm-cli" ]; then
+            cd goorm-cli && go mod download && cd ..
+          fi
+
+      - name: Make script executable
+        run: chmod +x ./run-test.sh
+
+      - name: Run tests
+        run: ./run-test.sh
