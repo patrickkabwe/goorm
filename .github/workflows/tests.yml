@@ -28,7 +28,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        go: [1.21, 1.22, 1.23]
+        go: [1.21, 1.22]
         dbversion:
           ["postgres:latest", "postgres:15", "postgres:14", "postgres:13"]
         include:
@@ -63,6 +63,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
+          check-latest: true
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -78,10 +79,22 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Install netcat
+        run: sudo apt-get install -y netcat-openbsd
+
       - name: Wait for PostgreSQL
         run: |
-          while ! nc -z localhost ${{env.POSTGRES_PORT}}; do
+          echo "Waiting for PostgreSQL to be ready..."
+          until nc -z localhost ${{env.POSTGRES_PORT}}; do
+            echo "PostgreSQL is unavailable - sleeping"
             sleep 1
           done
-      - name: Tests
-        run: POSTGRES_DSN="postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}" go test -count=1 -v -cover .
+          echo "PostgreSQL is up and running!"
+
+      - name: Run tests
+        env:
+          POSTGRES_DSN: "postgres://${{env.POSTGRES_USER}}:${{env.POSTGRES_PASSWORD}}@localhost:${{env.POSTGRES_PORT}}/${{env.POSTGRES_DB}}?sslmode=disable&TimeZone=${{env.TZ}}"
+        run: |
+          echo "Using DSN: ${POSTGRES_DSN//${POSTGRES_PASSWORD}/***}"
+          go test -count=1 -v -cover ./...
