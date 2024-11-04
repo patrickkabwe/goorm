@@ -483,7 +483,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 
 	result, err := tx.ExecContext(ctx, originalQuery, q.params...)
 	if err != nil {
-		tx.Rollback()
+		err := tx.Rollback()
+		if err != nil {
+			return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+		}
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
@@ -491,7 +494,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 	if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(originalQuery)), "INSERT") {
 		lastID, err := result.LastInsertId()
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+			}
 			return nil, fmt.Errorf("failed to get last insert ID: %w", err)
 		}
 
@@ -506,7 +512,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 		// Execute SELECT query
 		rows, err := tx.QueryContext(ctx, selectQuery.String(), lastID)
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+			}
 			return nil, fmt.Errorf("failed to fetch returned fields: %w", err)
 		}
 
@@ -525,7 +534,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 		// Get the WHERE clause from the original query
 		whereParts := strings.Split(originalQuery, "WHERE")
 		if len(whereParts) != 2 {
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+			}
 			return nil, fmt.Errorf("cannot handle RETURNING clause without WHERE condition")
 		}
 
@@ -541,7 +553,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 		// Execute SELECT query
 		rows, err := tx.QueryContext(ctx, selectQuery.String(), q.params...)
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+			}
 			return nil, fmt.Errorf("failed to fetch returned fields: %w", err)
 		}
 
@@ -553,7 +568,10 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 		return rows, nil
 	}
 
-	tx.Rollback()
+	err = tx.Rollback()
+	if err != nil {
+		return nil, fmt.Errorf("failed to rollback transaction: %w", err)
+	}
 	return nil, fmt.Errorf("unsupported query type for RETURNING fallback")
 }
 
