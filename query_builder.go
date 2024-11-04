@@ -65,6 +65,35 @@ func (q *QueryBuilder) Select(fields ...string) *QueryBuilder {
 	return q
 }
 
+// Distinct adds the DISTINCT keyword to the query
+// e.g. SELECT DISTINCT * FROM users
+func (q *QueryBuilder) SelectDistinct(fields ...string) *QueryBuilder {
+	if len(fields) == 0 {
+		q.query.WriteString("SELECT DISTINCT *")
+		return q
+	}
+
+	q.query.WriteString("SELECT DISTINCT ")
+	q.operations = append(q.operations, "SELECT DISTINCT")
+
+	formattedFields := make([]string, len(fields))
+	for i, field := range fields {
+		field = strings.TrimSpace(field)
+		if strings.Contains(field, "(") ||
+			field == "*" ||
+			strings.Contains(field, ".") ||
+			strings.Contains(field, " as ") ||
+			strings.Contains(field, " AS ") {
+			formattedFields[i] = field
+		} else {
+			formattedFields[i] = field
+		}
+	}
+
+	q.query.WriteString(strings.Join(formattedFields, ", "))
+	return q
+}
+
 func (q *QueryBuilder) From(table string) *QueryBuilder {
 	table = strings.TrimSpace(table)
 	if table == "" {
@@ -84,12 +113,13 @@ func (q *QueryBuilder) From(table string) *QueryBuilder {
 	q.operations = append(q.operations, "FROM")
 
 	// Prefix columns in SELECT clause if it exists
-	if hasOperation(q.operations, "SELECT") {
+	if hasOperation(q.operations, "SELECT") || hasOperation(q.operations, "SELECT DISTINCT") {
 		query := q.query.String()
 		parts := strings.SplitN(query, "FROM", 2)
 		if len(parts) > 0 {
 			selectPart := parts[0]
 			selectPart = strings.TrimPrefix(selectPart, "SELECT ")
+			selectPart = strings.TrimPrefix(selectPart, "SELECT DISTINCT ")
 			fields := splitFields(selectPart)
 
 			formattedFields := make([]string, len(fields))
@@ -292,11 +322,9 @@ func (q *QueryBuilder) Offset(offset int) *QueryBuilder {
 	return q
 }
 
-func (q *QueryBuilder) Distinct() *QueryBuilder {
-	q.query.WriteString(" DISTINCT")
-	return q
-}
-
+// SubQuery adds a sub-query to the query
+// e.g. SELECT * FROM (SELECT * FROM users WHERE id = 1) AS users
+// e.g. SELECT * FROM (SELECT * FROM users WHERE id = 1) AS users WHERE id = 2
 func (q *QueryBuilder) SubQuery(query string) *QueryBuilder {
 	q.query.WriteString("(" + query + ")")
 	return q
@@ -313,27 +341,20 @@ func (q *QueryBuilder) NotExists(query string) *QueryBuilder {
 }
 
 func (q *QueryBuilder) LeftJoin(table string, condition string) *QueryBuilder {
-	q.query.WriteString(" LEFT JOIN " + table + " ON " + condition)
-	return q
+	return q.Join("LEFT", table, condition)
 }
 
 func (q *QueryBuilder) RightJoin(table string, condition string) *QueryBuilder {
-	q.query.WriteString(" RIGHT JOIN " + table + " ON " + condition)
-	return q
+	return q.Join("RIGHT", table, condition)
 }
 
 func (q *QueryBuilder) InnerJoin(table string, condition string) *QueryBuilder {
-	q.query.WriteString(" INNER JOIN " + table + " ON " + condition)
-	return q
+	return q.Join("INNER", table, condition)
 }
 
-func (q *QueryBuilder) FullJoin(table string, condition string) *QueryBuilder {
-	q.query.WriteString(" FULL JOIN " + table + " ON " + condition)
-	return q
-}
-
-func (q *QueryBuilder) CrossJoin(table string) *QueryBuilder {
-	q.query.WriteString(" CROSS JOIN " + table)
+// Join adds a JOIN clause to the query
+func (q *QueryBuilder) Join(joinType string, table string, condition string) *QueryBuilder {
+	q.query.WriteString(fmt.Sprintf(" %s JOIN %s ON %s", joinType, table, condition))
 	return q
 }
 
@@ -352,8 +373,9 @@ func (q *QueryBuilder) CaseEnd() *QueryBuilder {
 	return q
 }
 
+// GetSql returns the query string
 func (q *QueryBuilder) GetSql() string {
-	return q.FormatQuery()
+	return q.formatQuery()
 }
 
 func (q *QueryBuilder) Returning(fields ...string) *QueryBuilder {
@@ -363,11 +385,9 @@ func (q *QueryBuilder) Returning(fields ...string) *QueryBuilder {
 	return q
 }
 
-// Modify FormatQuery to include RETURNING clause
-func (q *QueryBuilder) FormatQuery() string {
+func (q *QueryBuilder) formatQuery() string {
 	query := q.query.String()
 
-	// Add RETURNING clause if present and supported
 	if len(q.returning) > 0 && q.dialect != nil && supportsReturning(q.dialect) {
 		returningFields := make([]string, len(q.returning))
 		for i, field := range q.returning {
@@ -380,7 +400,6 @@ func (q *QueryBuilder) FormatQuery() string {
 		query += " RETURNING " + strings.Join(returningFields, ", ")
 	}
 
-	// Add semicolon if not present
 	if !strings.HasSuffix(query, ";") {
 		query += ";"
 	}
@@ -390,12 +409,13 @@ func (q *QueryBuilder) FormatQuery() string {
 	return query
 }
 
+// GetQuery returns the query and parameters for the given model
 func GetQuery(dialect Dialect, model any, params P) (string, []interface{}) {
 	q := NewQueryBuilder(nil, dialect, nil)
 	return q.GetSql(), q.params
 }
 
-// Modify Execute to handle RETURNING clause
+// Execute executes the query and returns the result
 func (q *QueryBuilder) Execute(ctx context.Context) (*sql.Rows, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -418,6 +438,7 @@ func (q *QueryBuilder) Execute(ctx context.Context) (*sql.Rows, error) {
 
 	return dbQuery, nil
 }
+
 func (q *QueryBuilder) Reset() {
 	q.query.Reset()
 	q.operations = make([]string, 0)
@@ -426,32 +447,6 @@ func (q *QueryBuilder) Reset() {
 	q.currentTable = ""
 }
 
-// Helper function to determine if a token could be a column name in WHERE clause
-func isColumnNameInWhere(parts []string, pos int) bool {
-	if pos >= len(parts)-1 {
-		return false
-	}
-
-	nextPart := strings.ToUpper(parts[pos+1])
-
-	// Common patterns where the current part might be a column
-	switch nextPart {
-	case "=", ">", "<", ">=", "<=", "!=", "<>", "IN", "IS", "LIKE", "BETWEEN":
-		return true
-	}
-
-	if pos > 0 {
-		prevPart := strings.ToUpper(parts[pos-1])
-		switch prevPart {
-		case "AND", "OR", "WHERE", "NOT":
-			return true
-		}
-	}
-
-	return false
-}
-
-// Modify handleClause to use the same logic
 func (q *QueryBuilder) handleClause(clause string, condition string, args ...interface{}) *QueryBuilder {
 	if condition == "" {
 		return q

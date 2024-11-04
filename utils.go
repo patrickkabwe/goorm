@@ -75,3 +75,27 @@ func supportsReturning(dialect Dialect) bool {
 		return false
 	}
 }
+
+func isColumnNameInWhere(parts []string, pos int) bool {
+	if pos >= len(parts)-1 {
+		return false
+	}
+
+	nextPart := strings.ToUpper(parts[pos+1])
+
+	// Common patterns where the current part might be a column
+	switch nextPart {
+	case "=", ">", "<", ">=", "<=", "!=", "<>", "IN", "IS", "LIKE", "BETWEEN":
+		return true
+	}
+
+	if pos > 0 {
+		prevPart := strings.ToUpper(parts[pos-1])
+		switch prevPart {
+		case "AND", "OR", "WHERE", "NOT":
+			return true
+		}
+	}
+
+	return false
+}

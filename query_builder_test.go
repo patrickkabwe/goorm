@@ -25,7 +25,7 @@ func TestQueryBuilder(t *testing.T) {
 
 	var sd map[string]any
 	rows, err := builder.
-		Select("COUNT(*)", "id", "name", "email", "profiles.id", "profiles.user_id").
+		SelectDistinct("COUNT(*)", "id", "name", "email", "profiles.id", "profiles.user_id").
 		From("users").
 		LeftJoin("profiles", "users.id = profiles.user_id").
 		Where("id = $1 AND name = $2", 1, "John").
