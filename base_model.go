@@ -65,12 +65,12 @@ func (m *BaseModel[T]) loadRelations(results *[]T, includes map[string]P) error 
 	for name, includeParams := range includes {
 		relation, ok := m.relations[name]
 		if !ok {
-			m.logger.Debug("Relation not found", "relation", name)
+			m.logger.Info("Relation not found", "relation", name)
 			continue
 		}
 
 		if relation.Model == nil {
-			m.logger.Debug("Relation model is nil", "relation", name)
+			m.logger.Info("Relation model is nil", "relation", name)
 			continue
 		}
 
@@ -120,7 +120,7 @@ func (m *BaseModel[T]) loadHasManyRelation(results *[]T, rel Relation, params P)
 
 		field := v.FieldByName(rel.References)
 		if !field.IsValid() {
-			m.logger.Debug("Reference field not found", "field", rel.References)
+			m.logger.Info("Reference field not found", "field", rel.References)
 			continue
 		}
 
@@ -136,7 +136,6 @@ func (m *BaseModel[T]) loadHasManyRelation(results *[]T, rel Relation, params P)
 
 	// Execute query for related records
 	query, args := buildQuery(m.engine, rel.Model, params)
-	m.logger.Debug("Loading relation", "relation", rel.Name, "query", query, "args", args)
 
 	var rows *sql.Rows
 	var err error

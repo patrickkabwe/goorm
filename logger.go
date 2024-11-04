@@ -3,6 +3,9 @@ package goorm
 import (
 	"log/slog"
 	"os"
+	"time"
+
+	"github.com/lmittmann/tint"
 )
 
 type Logger interface {
@@ -17,14 +20,17 @@ type logger struct {
 }
 
 func NewDefaultLogger() Logger {
-	logLevel := &slog.LevelVar{}
+	w := os.Stderr
 
-	opts := &slog.HandlerOptions{
-		Level: logLevel,
-	}
-	var defaultLogger = slog.New(slog.NewTextHandler(os.Stdout, opts))
-	logLevel.Set(slog.LevelInfo)
+	defaultLogger := slog.New(tint.NewHandler(w, nil))
 
+	// set global logger with custom options
+	slog.SetDefault(slog.New(
+		tint.NewHandler(w, &tint.Options{
+			Level:      slog.LevelDebug,
+			TimeFormat: time.Kitchen,
+		}),
+	))
 
 	return &logger{
 		logger: defaultLogger,

@@ -42,7 +42,7 @@ func NewEngine(driverName Driver, dataSource string, logger Logger) (*Engine, er
 		return nil, err
 	}
 
-	db, err := sql.Open(dialect.GetName(), dataSource)
+	db, err := sql.Open(string(dialect.GetName()), dataSource)
 
 	if err != nil {
 		return nil, err
