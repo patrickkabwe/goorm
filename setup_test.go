@@ -23,9 +23,12 @@ func TestMain(m *testing.M) {
 	}
 
 	// Run tests
-	os.Exit(m.Run())
+	code := m.Run()
+
+	// Cleanup
+	_ = db.User.Delete(goorm.P{})
 
 	// Close database
 	db.Close()
-	os.Exit(0)
+	os.Exit(code)
 }
