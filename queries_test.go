@@ -20,6 +20,26 @@ func TestFindMany(t *testing.T) {
 	assert.NotEmpty(t, users)
 }
 
+func TestFindManyWithSelect(t *testing.T) {
+	testCreateUser(t)
+
+	users, err := db.User.FindMany(orm.P{
+		Where: orm.Where(
+			orm.Or(
+				orm.Eq("name", "John"),
+				orm.Eq("age", 18),
+			)...,
+		),
+		Select: map[string]bool{
+			"name": true,
+		},
+	})
+	if assert.NoError(t, err) {
+		assert.NotNil(t, users[0].Name)
+		assert.Empty(t, users[0].Email)
+	}
+}
+
 func TestFindFirst(t *testing.T) {
 	testCreateUser(t)
 	user, err := db.User.FindFirst(orm.P{
@@ -40,9 +60,9 @@ func TestCreate(t *testing.T) {
 			Age:   30,
 		},
 	})
-
-	assert.NoError(t, err)
-	assert.NotEmpty(t, user)
+	if assert.NoError(t, err) {
+		assert.NotEmpty(t, user)
+	}
 }
 
 func TestUpdate(t *testing.T) {

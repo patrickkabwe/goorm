@@ -73,7 +73,7 @@ type Dialect interface {
 	// Quote wraps identifiers (table names, column names) with appropriate quotes
 	Quote(identifier string) string
 	// GetName returns the name of the dialect
-	GetName() string
+	GetName() Driver
 	// Check table existence
 	TableExists(tx *sql.Tx, tableName string) (bool, error)
 	// Get current table columns

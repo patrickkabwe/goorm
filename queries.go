@@ -1,11 +1,20 @@
 package goorm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
 )
+
+// Condition represents a where condition
+type Condition struct {
+	Logic string
+	Field string
+	Op    string
+	Value interface{}
+}
 
 // Params represents query parameters
 type P struct {
@@ -16,13 +25,6 @@ type P struct {
 	Offset  *int
 	OrderBy []string
 	Include map[string]P
-}
-
-// Condition represents a where condition
-type Condition struct {
-	Field string
-	Op    string
-	Value interface{}
 }
 
 type Query[T any] interface {
@@ -43,10 +45,34 @@ const (
 	OpLte   = "<="
 	OpIn    = "IN"
 	OpNotEq = "!="
+	OpOr    = "OR"
+	OpAnd   = "AND"
 )
 
 // Where combines multiple conditions with AND
 func Where(conditions ...Condition) []Condition {
+	return conditions
+}
+
+func Or(conditions ...Condition) []Condition {
+	if len(conditions) == 0 {
+		return nil
+	}
+	// Set Logic field for all conditions except the first one
+	for i := 1; i < len(conditions); i++ {
+		conditions[i].Logic = "OR"
+	}
+	return conditions
+}
+
+func And(conditions ...Condition) []Condition {
+	if len(conditions) == 0 {
+		return nil
+	}
+	// Set Logic field for all conditions except the first one
+	for i := 1; i < len(conditions); i++ {
+		conditions[i].Logic = "AND"
+	}
 	return conditions
 }
 
@@ -85,38 +111,19 @@ func In(field string, values ...interface{}) Condition {
 
 // Generic find methods
 func (m *BaseModel[T]) FindMany(params P) ([]T, error) {
-	query, args := buildQuery(m.engine, new(T), params)
-
-	var rows *sql.Rows
-	var err error
-
-	if m.tx != nil {
-		rows, err = m.tx.Query(query, args...)
-	} else {
-		rows, err = m.engine.db.Query(query, args...)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("execute query: %w", err)
-	}
-	defer rows.Close()
-
-	var results []T
-	for rows.Next() {
-		var item T
-		if err := scanStruct(rows, &item); err != nil {
-			return nil, err
-		}
-		results = append(results, item)
-	}
-
-	if len(params.Include) > 0 && len(results) > 0 {
-		err = m.loadRelations(&results, params.Include)
-		if err != nil {
-			return nil, fmt.Errorf("load relations: %w", err)
+	qb := NewQueryBuilder(m.engine.db, m.engine.dialect, m.logger)
+	var model T
+	tableName := getTableName(model)
+	selectFields := make([]string, 0)
+	for key, value := range params.Select {
+		if value {
+			selectFields = append(selectFields, key)
 		}
 	}
+	qb.Select(selectFields...)
+	qb.From(tableName)
 
-	return results, nil
+	return handleAllQuery(context.Background(), m, qb, tableName, params)
 }
 
 func (m *BaseModel[T]) FindFirst(params P) (*T, error) {
@@ -167,10 +174,6 @@ func (m *BaseModel[T]) Update(params P) error {
 		return fmt.Errorf("invalid data type for update")
 	}
 
-	if len(params.Where) == 0 {
-		return fmt.Errorf("update requires where conditions")
-	}
-
 	query, args := buildUpdateQuery(m.engine, data, params.Where)
 
 	fmt.Println(query, args)
@@ -190,10 +193,6 @@ func (m *BaseModel[T]) Update(params P) error {
 }
 
 func (m *BaseModel[T]) Delete(params P) error {
-	if len(params.Where) == 0 {
-		return fmt.Errorf("delete requires where conditions")
-	}
-
 	query, args := buildDeleteQuery(m.engine, new(T), params)
 
 	var err error
@@ -240,7 +239,7 @@ func buildInsertQuery(engine *Engine, data interface{}) (string, []interface{}) 
 		strings.Join(placeholders, ", "),
 	)
 
-	engine.logger.Info("Insert query", "query", query, "args", args)
+	engine.logger.Info(query, "args", args)
 
 	return query, args
 }
@@ -291,7 +290,7 @@ func buildUpdateQuery(engine *Engine, data interface{}, conditions []Condition) 
 		query += " WHERE " + strings.Join(whereStatements, " AND ")
 	}
 
-	engine.logger.Info("Update query", "query", query, "args", args)
+	engine.logger.Info(query, "args", args)
 
 	return query, args
 }
@@ -309,7 +308,7 @@ func buildDeleteQuery[T any](engine *Engine, model T, params P) (string, []inter
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	engine.logger.Info("Delete query", "query", query, "args", args)
+	engine.logger.Info(query, "args", args)
 
 	return query, args
 }
@@ -397,7 +396,7 @@ func buildQuery[T any](engine *Engine, model T, params P) (string, []interface{}
 		query.WriteString(fmt.Sprintf(" OFFSET %d", *params.Offset))
 	}
 
-	engine.logger.Info("Query", "query", query.String(), "args", args)
+	engine.logger.Info(query.String(), "args", args)
 
 	return query.String(), args
 }
@@ -514,6 +513,121 @@ func buildJoinClauses(engine *Engine, model interface{}, includes map[string]P) 
 	}
 
 	return joins, args
+}
+
+func handleAllQuery[T any](ctx context.Context, m *BaseModel[T], qb *QueryBuilder, tableName string, params P) ([]T, error) {
+	if len(params.Where) > 0 {
+		firstCond := params.Where[0]
+		placeholder := m.engine.dialect.GetPlaceholder(1)
+		qb.Where(fmt.Sprintf("%s %s %s", firstCond.Field, firstCond.Op, placeholder), firstCond.Value)
+
+		for i := 1; i < len(params.Where); i++ {
+			cond := params.Where[i]
+			placeholder := m.engine.dialect.GetPlaceholder(i + 1)
+
+			switch cond.Logic {
+			case "OR":
+				qb.Or(fmt.Sprintf("%s %s %s", cond.Field, cond.Op, placeholder), cond.Value)
+			case "AND":
+				qb.And(fmt.Sprintf("%s %s %s", cond.Field, cond.Op, placeholder), cond.Value)
+			default:
+				qb.And(fmt.Sprintf("%s %s %s", cond.Field, cond.Op, placeholder), cond.Value)
+			}
+		}
+	}
+
+	// Add ORDER BY
+	if len(params.OrderBy) > 0 {
+		qb.OrderBy(params.OrderBy...)
+	}
+
+	// Add LIMIT and OFFSET
+	if params.Limit != nil {
+		qb.Limit(*params.Limit)
+	}
+	if params.Offset != nil {
+		qb.Offset(*params.Offset)
+	}
+
+	// If there are includes, add JOIN clauses
+	if len(params.Include) > 0 {
+		for name, includeParams := range params.Include {
+			relation, ok := m.relations[name]
+			if !ok {
+				continue
+			}
+
+			joinTable := getTableName(relation.Model)
+			var joinCondition string
+
+			switch relation.Type {
+			case HasOne, HasMany:
+				joinCondition = fmt.Sprintf("%s.%s = %s.%s",
+					joinTable,
+					relation.ForeignKey,
+					tableName,
+					relation.References,
+				)
+			case BelongsTo:
+				joinCondition = fmt.Sprintf("%s.%s = %s.%s",
+					tableName,
+					relation.ForeignKey,
+					joinTable,
+					relation.References,
+				)
+			}
+
+			qb.LeftJoin(joinTable, strings.ToLower(joinCondition))
+
+			// Add conditions for the joined table
+			if len(includeParams.Where) > 0 {
+				for ci, cond := range includeParams.Where {
+					placeholder := m.engine.dialect.GetPlaceholder(len(params.Where) + ci + 1)
+					qb.And(fmt.Sprintf("%s.%s %s %s",
+						joinTable,
+						cond.Field,
+						cond.Op,
+						placeholder),
+						cond.Value,
+					)
+				}
+			}
+		}
+	}
+
+	// Execute query
+	var rows *sql.Rows
+	var err error
+
+	if m.tx != nil {
+		rows, err = qb.db.QueryContext(ctx, qb.GetSql(), qb.params...)
+	} else {
+		rows, err = qb.Execute(ctx)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("execute query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []T
+	for rows.Next() {
+		var item T
+		if err := scanStruct(rows, &item); err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+
+	if len(params.Include) > 0 && len(results) > 0 {
+		err = m.loadRelations(&results, params.Include)
+		if err != nil {
+			return nil, fmt.Errorf("load relations: %w", err)
+		}
+	}
+
+	qb.Reset()
+
+	return results, nil
 }
 
 // Modify scanStruct to handle aliased columns

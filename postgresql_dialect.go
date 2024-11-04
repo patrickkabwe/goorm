@@ -9,7 +9,7 @@ import (
 // PostgreSQL dialect implementation
 type PostgreSQL struct{}
 
-func (p *PostgreSQL) GetName() string {
+func (p *PostgreSQL) GetName() Driver {
 	return "pgx"
 }
 

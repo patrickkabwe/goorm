@@ -9,7 +9,7 @@ import (
 // SQLite dialect implementation
 type SQLite struct{}
 
-func (s *SQLite) GetName() string {
+func (s *SQLite) GetName() Driver {
 	return "sqlite3"
 }
 

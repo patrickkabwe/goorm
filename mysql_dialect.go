@@ -9,7 +9,7 @@ import (
 // MYSQL dialect
 type MYSQL struct{}
 
-func (m *MYSQL) GetName() string {
+func (m *MYSQL) GetName() Driver {
 	return "mysql"
 }
 
