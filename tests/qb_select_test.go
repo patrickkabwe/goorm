@@ -3,6 +3,8 @@ package tests_test
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestQueryBuilderSelectQuery(t *testing.T) {
@@ -11,15 +13,15 @@ func TestQueryBuilderSelectQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed %v", err)
 	}
-
-	_, err = qb.
+	user := &User{}
+	err = qb.
 		Select("id", "name", "email").
 		From("users").
 		Where("users.id = $1", u.ID).
 		Limit(1).
-		Exec(ctx)
+		Scan(ctx, user)
 
-	if err != nil {
-		t.Errorf("failed %v", err)
+	if assert.NoError(t, err) {
+		assert.Equal(t, user.Name, "patrick")
 	}
 }

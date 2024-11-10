@@ -489,6 +489,15 @@ func (q *QueryBuilder) Exec(ctx context.Context) (*sql.Rows, error) {
 	return rows, nil
 }
 
+// Scan maps struct fields to db field
+func (q *QueryBuilder) Scan(ctx context.Context, model interface{}) error {
+	rows, err := q.Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return q.mapToModel(rows, model)
+}
+
 func (q *QueryBuilder) exec(ctx context.Context, model interface{}) error {
 	rows, err := q.Exec(ctx)
 	if err != nil {
