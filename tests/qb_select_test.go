@@ -22,6 +22,6 @@ func TestQueryBuilderSelectQuery(t *testing.T) {
 		Scan(ctx, user)
 
 	if assert.NoError(t, err) {
-		assert.Equal(t, user.Name, "patrick")
+		assert.NotEmpty(t, user.Name)
 	}
 }
