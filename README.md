@@ -1,67 +1,88 @@
-# goorm
+# 🚀 goorm
 
-Goorm is a ORM for Go that supports PostgreSQL, MySQL, and SQLite.
+Goorm is a QueryBuilder\ORM for Go that supports PostgreSQL, MySQL, and SQLite. Built with simplicity and flexibility in mind.
 
-## Installation
+## 📦 Installation
 
 ```bash
 go get github.com/patrickkabwe/goorm
 ```
 
-## CLI Installation
+> [!NOTE]
+> 🔄 The Goorm ORM is yet to be implemented
 
-```bash
-go install github.com/patrickkabwe/goorm/cmd@latest
-```
+## ⚠️ Disclaimer
 
-> [!NOTE] 
-> You need to install both `goorm` and `goorm-cli` to use the CLI. The `goorm-cli` is used to generate the `goorm` code and to manage the migrations.
-
-## Disclaimer
-
-> [!WARNING] 
+> [!WARNING]
 > This module is still under development. Use at your own risk. The API is experimental and subject to change. This module tries to create a simple and intuitive API for interacting with databases. However, it is not a replacement for a professional database management system (DBMS) like PostgreSQL, MySQL, or SQLite.
 
-## Usage
+## 🎯 Usage
 
 ```go
 package main
 
 import (
 	"fmt"
-
+	"os"
 	"github.com/patrickkabwe/goorm"
 )
 
 type User struct {
-	ID   int    `json:"id" db_col:"id"`
-	Name string `json:"name" db_col:"name"`
+	ID      int64    `db:"id"`
+	Name    string   `db:"name"`
+	Email   string   `db:"email"`
 }
 
 func main() {
-	db := goorm.New(&goorm.GoormConfig{
-		DSN:    "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
-		Driver: goorm.Postgres,
-		Logger: goorm.NewDefaultLogger(),
-	})
+	db, err := sql.Open(
+		string(goorm.Postgres),
+		os.Getenv("POSTGRES_DSN"),
+	)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	defer db.Close()
 
-	users, err := db.User.FindMany(db.P{
-		Where: db.Where(
-			db.Eq("name", "John"),
-		),
-	})
+	qb = orm.NewQueryBuilder(db, &orm.PostgreSQL{}, nil)
+	ctx := context.Background()
+	email := "test@gmail.com"
+	user := &User{}
+	err := qb.
+		InsertInto("users").
+		Columns("name", "email").
+		Values("patrick", email).
+		Returning(ctx, user, "id", "email")
 
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(users)
+	fmt.Println(user)
 }
 ```
 
-## License
+## ✨ Features
+
+- 🛠️ **Flexible Query Building**
+  - SELECT with DISTINCT support
+  - INSERT, UPDATE, DELETE operations
+  - Complex JOIN operations
+  - WHERE clauses with AND, OR, NOT
+  - GROUP BY, HAVING, ORDER BY
+  - LIMIT and OFFSET pagination
+- 🔒 **Type Safety**
+  - Strongly typed parameters
+  - Struct mapping for results
+- 📊 **Database Support**
+  - PostgreSQL
+  - MySQL
+  - SQLite (coming soon)
+- 🔄 **Advanced Features**
+  - Transaction support
+  - RETURNING clause
+  - Custom logger integration
+  - Nested struct mapping
+  - Auto table name prefixing
+
+## 📄 License
 
 MIT License
 
@@ -84,3 +105,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+- Open issues for bugs or feature requests
+- Submit pull requests
+- Improve documentation
+- Share feedback
+
+## Made with ❤️ by [Patrick Kabwe](https://github.com/patrickkabwe)
+
+⭐️ If you find this project helpful, please give it a star!

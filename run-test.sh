@@ -70,43 +70,43 @@ check_requirements() {
 }
 
 # Function to run database migrations
-run_migrations() {
-    log "${YELLOW}Running database migrations...${NC}"
+# run_migrations() {
+#     log "${YELLOW}Running database migrations...${NC}"
     
-    if [ -d "migrations" ]; then
-        if command -v migrate &> /dev/null; then
-            migrate -database "${POSTGRES_DSN}" -path migrations up
-            return $?
-        else
-            log "${YELLOW}Migrate command not found, trying goorm-cli...${NC}"
-        fi
-    fi
+#     if [ -d "migrations" ]; then
+#         if command -v migrate &> /dev/null; then
+#             migrate -database "${POSTGRES_DSN}" -path migrations up
+#             return $?
+#         else
+#             log "${YELLOW}Migrate command not found, trying goorm-cli...${NC}"
+#         fi
+#     fi
     
-    # Check if goorm-cli directory exists
-    if [ -d "goorm-cli" ]; then
-        log "${YELLOW}Running migrations using goorm-cli...${NC}"
+#     # Check if goorm-cli directory exists
+#     if [ -d "goorm-cli" ]; then
+#         log "${YELLOW}Running migrations using goorm-cli...${NC}"
 
-        CURRENT_DIR=$(pwd)
+#         CURRENT_DIR=$(pwd)
         
-        cd goorm-cli || {
-            log "${RED}Failed to change to goorm-cli directory${NC}"
-            return 1
-        }
+#         cd goorm-cli || {
+#             log "${RED}Failed to change to goorm-cli directory${NC}"
+#             return 1
+#         }
         
-        if go run . push; then
-            log "${GREEN}Successfully ran goorm-cli migrations${NC}"
-            cd "$CURRENT_DIR"
-            return 0
-        else
-            log "${RED}Failed to run goorm-cli migrations${NC}"
-            cd "$CURRENT_DIR"
-            return 1
-        fi
-    else
-        log "${RED}Neither migrations directory nor goorm-cli directory found${NC}"
-        return 1
-    fi
-}
+#         if go run . push; then
+#             log "${GREEN}Successfully ran goorm-cli migrations${NC}"
+#             cd "$CURRENT_DIR"
+#             return 0
+#         else
+#             log "${RED}Failed to run goorm-cli migrations${NC}"
+#             cd "$CURRENT_DIR"
+#             return 1
+#         fi
+#     else
+#         log "${RED}Neither migrations directory nor goorm-cli directory found${NC}"
+#         return 1
+#     fi
+# }
 
 # Function to run tests
 run_tests() {
@@ -136,7 +136,7 @@ main() {
     
     check_requirements
     wait_for_postgres
-    run_migrations
+    # run_migrations
     run_tests
     
     log "${GREEN}All operations completed successfully!${NC}"

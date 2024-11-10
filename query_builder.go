@@ -4,15 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type QueryBuilder struct {
 	query        strings.Builder
 	db           *sql.DB
-	dialect      Dialect
 	logger       Logger
+	Dialect      Dialect
 	params       []interface{}
 	currentTable string
 	operations   []string
@@ -25,9 +28,9 @@ func NewQueryBuilder(db *sql.DB, dialect Dialect, logger Logger) *QueryBuilder {
 	}
 	return &QueryBuilder{
 		db:      db,
-		dialect: dialect,
 		params:  make([]interface{}, 0),
 		logger:  logger,
+		Dialect: dialect,
 	}
 }
 
@@ -251,37 +254,56 @@ func (q *QueryBuilder) NotBetween(column string, values ...any) *QueryBuilder {
 }
 
 func (q *QueryBuilder) InsertInto(table string) *QueryBuilder {
-	q.query.WriteString(" INSERT INTO " + table)
+	q.query.WriteString("INSERT INTO " + table)
 	return q
 }
 
-func (q *QueryBuilder) Values(values ...any) *QueryBuilder {
-	q.query.WriteString(" VALUES ")
+func (q *QueryBuilder) Columns(values ...any) *QueryBuilder {
+	q.query.WriteString("(")
 	for i, value := range values {
 		if i > 0 {
 			q.query.WriteString(", ")
 		}
-		q.query.WriteString(
-			"(" +
-				strings.Join(strings.Split(fmt.Sprint(value), " "), ",") +
-				")",
-		)
+		q.query.WriteString(strings.Join(strings.Split(fmt.Sprint(value), " "), ","))
 	}
+	q.query.WriteString(")")
+	return q
+}
+
+func (q *QueryBuilder) Values(values ...any) *QueryBuilder {
+	q.query.WriteString(" VALUES (")
+	for i, value := range values {
+		if i > 0 {
+			q.query.WriteString(", ")
+		}
+		q.query.WriteString(q.Dialect.GetPlaceholder(i + 1))
+		q.params = append(q.params, value)
+	}
+	q.query.WriteString(")")
 	return q
 }
 
 func (q *QueryBuilder) Update(table string) *QueryBuilder {
-	q.query.WriteString(" UPDATE " + table)
+	q.query.WriteString("UPDATE " + table)
 	return q
 }
 
-func (q *QueryBuilder) Set(field string, value any) *QueryBuilder {
-	q.query.WriteString(" SET " + field + " = " + fmt.Sprint(value))
+func (q *QueryBuilder) Set(values map[string]string) *QueryBuilder {
+	q.query.WriteString(" SET ")
+	cnt := 0
+	for field, value := range values {
+		cnt++
+		q.query.WriteString(fmt.Sprintf("%s=%s", field, q.Dialect.GetPlaceholder(cnt)))
+		if len(values) > cnt {
+			q.query.WriteString(",")
+		}
+		q.params = append(q.params, value)
+	}
 	return q
 }
 
 func (q *QueryBuilder) Delete(table string) *QueryBuilder {
-	q.query.WriteString(" DELETE FROM " + table)
+	q.query.WriteString("DELETE FROM " + table)
 	return q
 }
 
@@ -373,22 +395,48 @@ func (q *QueryBuilder) CaseEnd() *QueryBuilder {
 	return q
 }
 
+func (q *QueryBuilder) Returning(ctx context.Context, model interface{}, fields ...string) error {
+	if len(fields) > 0 {
+		q.returning = append(q.returning, fields...)
+	}
+
+	return q.exec(ctx, model)
+}
+
+func (q *QueryBuilder) DropColumn(table string) *QueryBuilder {
+	q.query.WriteString("DROP COLUMN " + table)
+	return q
+}
+
+func (q *QueryBuilder) DropTable(table string) *QueryBuilder {
+	q.query.WriteString("DROP TABLE " + table)
+	return q
+}
+
+func (q *QueryBuilder) Truncate(table string) *QueryBuilder {
+	q.query.WriteString("TRUNCATE TABLE " + table)
+	return q
+}
+
+func (q *QueryBuilder) Cascade() *QueryBuilder {
+	q.query.WriteString(" CASCADE")
+	return q
+}
+
+func (q *QueryBuilder) RestartIdentity() *QueryBuilder {
+	q.query.WriteString(" RESTART IDENTITY")
+	return q
+}
+
 // GetSql returns the query string
 func (q *QueryBuilder) GetSql() string {
 	return q.formatQuery()
 }
 
-func (q *QueryBuilder) Returning(fields ...string) *QueryBuilder {
-	if len(fields) > 0 {
-		q.returning = append(q.returning, fields...)
-	}
-	return q
-}
-
 func (q *QueryBuilder) formatQuery() string {
 	query := q.query.String()
 
-	if len(q.returning) > 0 && q.dialect != nil && supportsReturning(q.dialect) {
+	if len(q.returning) > 0 && q.Dialect != nil && supportsReturning(q.Dialect) {
 		returningFields := make([]string, len(q.returning))
 		for i, field := range q.returning {
 			if !strings.Contains(field, ".") && q.currentTable != "" {
@@ -409,41 +457,51 @@ func (q *QueryBuilder) formatQuery() string {
 	return query
 }
 
-// GetQuery returns the query and parameters for the given model
-func GetQuery(dialect Dialect, model any, params P) (string, []interface{}) {
-	q := NewQueryBuilder(nil, dialect, nil)
-	return q.GetSql(), q.params
-}
-
-// Execute executes the query and returns the result
-func (q *QueryBuilder) Execute(ctx context.Context) (*sql.Rows, error) {
+// Exec executes the query
+func (q *QueryBuilder) Exec(ctx context.Context) (*sql.Rows, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	query := q.GetSql()
+	defer q.Reset()
 
+	var rows *sql.Rows
+	var err error
 	if len(q.returning) > 0 {
-		if q.dialect != nil && supportsReturning(q.dialect) {
-			return q.db.QueryContext(ctx, query, q.params...)
+		if q.Dialect != nil && supportsReturning(q.Dialect) {
+			rows, err = q.db.QueryContext(ctx, query, q.params...)
+		} else {
+			// Fallback for databases that don't support RETURNING
+			// This might involve doing the insert/update first
+			// then running a separate SELECT query
+			rows, err = q.handleReturningFallback(ctx)
 		}
-		return q.handleReturningFallback(ctx)
+	} else {
+		rows, err = q.db.QueryContext(ctx, query, q.params...)
 	}
 
-	dbQuery, err := q.db.QueryContext(ctx, query, q.params...)
-
 	if err != nil {
+		q.logger.Error(err.Error())
 		return nil, err
 	}
 
-	return dbQuery, nil
+	return rows, nil
+}
+
+func (q *QueryBuilder) exec(ctx context.Context, model interface{}) error {
+	rows, err := q.Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return q.mapToModel(rows, model)
 }
 
 func (q *QueryBuilder) Reset() {
 	q.query.Reset()
 	q.operations = make([]string, 0)
 	q.returning = make([]string, 0)
-	q.params = q.params[:0]
+	q.params = make([]interface{}, 0)
 	q.currentTable = ""
 }
 
@@ -555,7 +613,6 @@ func (q *QueryBuilder) handleReturningFallback(ctx context.Context) (*sql.Rows, 
 			return nil, fmt.Errorf("failed to fetch returned fields: %w", err)
 		}
 
-		// Commit transaction
 		if err := tx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit transaction: %w", err)
 		}
@@ -583,4 +640,220 @@ func (q *QueryBuilder) prefixColumns(condition string) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+func (q *QueryBuilder) mapToModel(rows *sql.Rows, model interface{}) error {
+	modelValue := reflect.ValueOf(model)
+	if modelValue.Kind() != reflect.Pointer {
+		return fmt.Errorf("model must be a pointer")
+	}
+	modelValue = modelValue.Elem()
+
+	isSlice := modelValue.Kind() == reflect.Slice
+	var elemType reflect.Type
+	if isSlice {
+		elemType = modelValue.Type().Elem()
+		if elemType.Kind() == reflect.Ptr {
+			elemType = elemType.Elem()
+		}
+	} else {
+		elemType = modelValue.Type()
+		if elemType.Kind() == reflect.Ptr {
+			elemType = elemType.Elem()
+		}
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+
+	selectedColumns := make(map[string]bool)
+	for _, col := range columns {
+		selectedColumns[col] = true
+	}
+
+	values := make([]interface{}, len(columns))
+	for i := range values {
+		values[i] = new(interface{})
+	}
+
+	var results reflect.Value
+	if isSlice {
+		results = reflect.MakeSlice(modelValue.Type(), 0, 0)
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(values...); err != nil {
+			return err
+		}
+
+		valueMap := make(map[string]interface{})
+		for i, col := range columns {
+			value := *(values[i].(*interface{}))
+			valueMap[col] = value
+		}
+
+		newStruct := reflect.New(elemType).Elem()
+
+		for i := 0; i < elemType.NumField(); i++ {
+			field := elemType.Field(i)
+			fieldValue := newStruct.Field(i)
+
+			if !fieldValue.CanSet() {
+				continue
+			}
+
+			dbTag := field.Tag.Get("db")
+			if dbTag == "" {
+				continue
+			}
+
+			fieldType := field.Type
+			isPtr := fieldType.Kind() == reflect.Pointer
+			if isPtr {
+				fieldType = fieldType.Elem()
+			}
+
+			if fieldType.Kind() != reflect.Struct {
+				if value, exists := valueMap[dbTag]; exists {
+					if err := setFieldValue(fieldValue, value); err != nil {
+						return err
+					}
+				}
+
+			} else {
+				hasSelectedFields := false
+				for j := 0; j < fieldType.NumField(); j++ {
+					nestedTag := fieldType.Field(j).Tag.Get("db")
+					if selectedColumns[nestedTag] {
+
+						hasSelectedFields = true
+					}
+				}
+
+				if hasSelectedFields {
+					nestedStruct := reflect.New(fieldType)
+
+					for j := 0; j < fieldType.NumField(); j++ {
+						nestedField := fieldType.Field(j)
+						nestedFieldValue := nestedStruct.Elem().Field(j)
+
+						if !nestedFieldValue.CanSet() {
+							continue
+						}
+
+						nestedTag := nestedField.Tag.Get("db")
+						if nestedTag == "" {
+							continue
+						}
+
+						possibleNames := []string{
+							dbTag + "_" + nestedTag,
+							strings.TrimSuffix(dbTag, "s") + "_" + nestedTag,
+						}
+
+						if nestedTag != "id" {
+							possibleNames = append(possibleNames, nestedTag)
+						}
+
+						for _, name := range possibleNames {
+							if value, exists := valueMap[name]; exists {
+								if err := setFieldValue(nestedFieldValue, value); err != nil {
+									return err
+								}
+								break
+							}
+						}
+					}
+
+					if isPtr {
+						fieldValue.Set(nestedStruct)
+					} else {
+						fieldValue.Set(nestedStruct.Elem())
+					}
+				} else if isPtr {
+					fieldValue.Set(reflect.Zero(field.Type))
+				}
+
+			}
+		}
+
+		if isSlice {
+			if modelValue.Type().Elem().Kind() == reflect.Ptr {
+				ptrValue := reflect.New(elemType)
+				ptrValue.Elem().Set(newStruct)
+				results = reflect.Append(results, ptrValue)
+			} else {
+				results = reflect.Append(results, newStruct)
+			}
+		} else {
+			modelValue.Set(newStruct)
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if isSlice {
+		modelValue.Set(results)
+	}
+
+	return nil
+}
+
+func setFieldValue(field reflect.Value, value interface{}) error {
+	if !field.CanSet() || value == nil {
+		return nil
+	}
+
+	switch field.Kind() {
+	case reflect.Int64:
+		switch v := value.(type) {
+		case int64:
+			field.SetInt(v)
+		case int32:
+			field.SetInt(int64(v))
+		case int:
+			field.SetInt(int64(v))
+		case []uint8:
+			intVal, err := strconv.ParseInt(string(v), 10, 64)
+			if err != nil {
+				return err
+			}
+			field.SetInt(intVal)
+		}
+	case reflect.String:
+		switch v := value.(type) {
+		case string:
+			field.SetString(v)
+		case []uint8:
+			field.SetString(string(v))
+		}
+	case reflect.Bool:
+		switch v := value.(type) {
+		case bool:
+			field.SetBool(v)
+		case []uint8:
+			boolVal, err := strconv.ParseBool(string(v))
+			if err != nil {
+				return err
+			}
+			field.SetBool(boolVal)
+		}
+	case reflect.Float64:
+		switch v := value.(type) {
+		case float64:
+			field.SetFloat(v)
+		case []uint8:
+			floatVal, err := strconv.ParseFloat(string(v), 64)
+			if err != nil {
+				return err
+			}
+			field.SetFloat(floatVal)
+		}
+	}
+	return nil
 }
