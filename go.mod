@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/jackc/pgx/v5 v5.7.1
-	github.com/lmittmann/tint v1.0.5
+	github.com/lmittmann/tint v1.0.6
 	github.com/stretchr/testify v1.8.1
 )
 
